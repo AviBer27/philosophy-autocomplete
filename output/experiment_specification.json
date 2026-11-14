@@ -1,0 +1,40 @@
+{
+  "corpus": "james",
+  "source_sha256": "bcfadbaeb796fdd8a721909409d27e42a81a9beed814b60d708a9f4559712bf2",
+  "max_vocab": 2000,
+  "hmm_states": [
+    4,
+    8,
+    16
+  ],
+  "hmm_seeds": [
+    7,
+    19
+  ],
+  "hmm_iterations": 100,
+  "hmm_patience": 10,
+  "rnn_hidden": [
+    32,
+    64
+  ],
+  "rnn_seeds": [
+    7
+  ],
+  "rnn_epochs": 25,
+  "rnn_patience": 5,
+  "rnn_embedding": 32,
+  "rnn_learning_rate": 0.003,
+  "rnn_batch_size": 64,
+  "min_delta": 0.0001,
+  "baseline_grid": {
+    "alpha": [
+      0.01,
+      0.1
+    ],
+    "interpolation": [
+      0.5,
+      0.8
+    ]
+  },
+  "protocol": "Predeclared before fitting; all choices and checkpoints frozen by validation before the final held-out evaluation."
+}

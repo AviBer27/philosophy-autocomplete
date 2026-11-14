@@ -1,0 +1,5 @@
+{
+  "name": "rnn_64_s7",
+  "path": "output/models/rnn_64_s7.json",
+  "criterion": "Minimum validation NLL over predeclared model variants."
+}
