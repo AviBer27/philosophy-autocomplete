@@ -13,7 +13,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -24,9 +24,9 @@ from reportlab.platypus import Flowable, PageBreak, Paragraph, SimpleDocTemplate
 ROOT = Path(__file__).resolve().parents[1]
 PAGE_W, PAGE_H = A4
 WIDTH = PAGE_W - 36 * mm
-INK, MUTED = colors.HexColor('#17212A'), colors.HexColor('#4D5861')
-RULE, LIGHT = colors.HexColor('#BCC4CA'), colors.HexColor('#F2F4F5')
-BLUE, ORANGE = colors.HexColor('#285F88'), colors.HexColor('#B86A28')
+INK, MUTED = colors.black, colors.black
+RULE, LIGHT = colors.black, colors.HexColor('#EAEAEA')
+BLUE, ORANGE = colors.black, colors.black
 
 
 def register_fonts():
@@ -46,12 +46,16 @@ def register_fonts():
 def make_styles():
     styles = getSampleStyleSheet()
     definitions = {
-        'Title': dict(fontName='PaperBold', fontSize=18, leading=21.5, spaceAfter=11, textColor=INK),
+        'Title': dict(fontName='Paper', fontSize=18, leading=22, spaceAfter=4, textColor=INK, alignment=TA_CENTER),
+        'Course': dict(fontName='Paper', fontSize=11.5, leading=14, spaceAfter=11, textColor=INK, alignment=TA_CENTER),
+        'Identity': dict(fontName='Paper', fontSize=11, leading=14, textColor=INK, alignment=TA_CENTER),
+        'Date': dict(fontName='Paper', fontSize=11, leading=14, spaceBefore=10, spaceAfter=17, textColor=INK, alignment=TA_CENTER),
+        'AbstractHeading': dict(fontName='PaperBold', fontSize=11, leading=14, spaceAfter=7, textColor=INK, alignment=TA_CENTER),
         'Body': dict(fontName='Paper', fontSize=10.5, leading=13.9, spaceAfter=7, textColor=INK, alignment=TA_JUSTIFY),
         'Heading': dict(fontName='PaperBold', fontSize=12, leading=15, spaceBefore=10, spaceAfter=6, textColor=INK),
         'Subheading': dict(fontName='PaperBold', fontSize=10.6, leading=14, spaceBefore=7, spaceAfter=4, textColor=INK),
         'Small': dict(fontName='Paper', fontSize=9, leading=11.8, spaceAfter=6, textColor=MUTED),
-        'Abstract': dict(fontName='Paper', fontSize=10, leading=13, spaceAfter=7, textColor=INK, alignment=TA_JUSTIFY),
+        'Abstract': dict(fontName='Paper', fontSize=10, leading=13, leftIndent=12*mm, rightIndent=12*mm, spaceAfter=7, textColor=INK, alignment=TA_JUSTIFY),
         'Equation': dict(fontName='Paper', fontSize=10.3, leading=15.2, spaceBefore=3, spaceAfter=6, leftIndent=13, textColor=INK),
         'Table': dict(fontName='Paper', fontSize=8.9, leading=11.3, textColor=INK),
         'TableHead': dict(fontName='PaperBold', fontSize=8.8, leading=11.3, textColor=INK),
@@ -67,7 +71,6 @@ def academic_table(headers, rows, widths, styles):
     values += [[Paragraph(str(item), styles['PaperTable']) for item in row] for row in rows]
     table = Table(values, colWidths=widths, repeatRows=1, hAlign='LEFT')
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), LIGHT),
         ('LINEABOVE', (0, 0), (-1, 0), .7, INK),
         ('LINEBELOW', (0, 0), (-1, 0), .5, RULE),
         ('LINEBELOW', (0, -1), (-1, -1), .7, INK),
@@ -119,8 +122,10 @@ class LearningFigure(Flowable):
             for key,color in [('train_nll',BLUE),('validation_nll',ORANGE)]:
                 canvas.setStrokeColor(color)
                 canvas.setLineWidth(1.3)
+                canvas.setDash([3,2] if key=='validation_nll' else [])
                 for first,second in zip(history[:-1],history[1:]):
                     canvas.line(x(first['epoch']),y(first[key]),x(second['epoch']),y(second[key]))
+            canvas.setDash([])
             retained = next((row for row in history if row['epoch']==model['best_epoch']),None)
             if retained:
                 canvas.setFillColor(ORANGE)
@@ -136,7 +141,9 @@ class LearningFigure(Flowable):
         legend_x = self.width/2-55
         for label,color in [('Train',BLUE),('Validation',ORANGE)]:
             canvas.setStrokeColor(color)
+            canvas.setDash([3,2] if label=='Validation' else [])
             canvas.line(legend_x,self.height-25,legend_x+11,self.height-25)
+            canvas.setDash([])
             canvas.setFillColor(INK)
             canvas.setFont('Paper',8)
             canvas.drawString(legend_x+15,self.height-28,label)
@@ -145,12 +152,9 @@ class LearningFigure(Flowable):
 
 def page_footer(canvas, doc):
     canvas.saveState()
-    canvas.setStrokeColor(RULE)
-    canvas.line(18*mm,13*mm,PAGE_W-18*mm,13*mm)
-    canvas.setFont('Paper',8)
-    canvas.setFillColor(MUTED)
-    canvas.drawString(18*mm,8.8*mm,'Next-word prediction in philosophy of religion')
-    canvas.drawRightString(PAGE_W-18*mm,8.8*mm,str(doc.page))
+    canvas.setFont('Paper',9)
+    canvas.setFillColor(INK)
+    canvas.drawCentredString(PAGE_W/2,8.8*mm,str(doc.page))
     canvas.restoreState()
 
 
@@ -201,7 +205,9 @@ def checkpoint_description(hmm,rnn):
     return '; '.join(clauses)+'. A run that reaches its maximum budget is not evidence of convergence. The curves expose training/validation divergence and the effect of checkpoint selection.'
 
 
-def build_report(results,output,repository_url=''):
+def build_report(results,output,repository_url='',author='Avi Berezovski',student_id='',report_date='November 2026'):
+    if student_id and output.resolve()==(ROOT/'output/pdf/project_report.pdf').resolve():
+        raise ValueError('Choose a separate --output path for a report containing a student ID.')
     register_fonts()
     styles,story=make_styles(),[]
     models,corpus,config=results['models'],results['corpus'],results['config']
@@ -219,7 +225,14 @@ def build_report(results,output,repository_url=''):
 
     # Page 1: academic title, abstract, motivation, and dataset; no cover page.
     p('Next-Word Prediction in Philosophy of Religion:<br/>N-gram, Hidden Markov and Recurrent Neural Models','Title')
-    p('<b>Abstract.</b> This project implements next-word completion for a domain-focused English corpus drawn from William James\'s <i>The Varieties of Religious Experience</i>. '
+    p('Bayesian Inference Course Project','Course')
+    if author:
+        p(escape(author),'Identity')
+    if student_id:
+        p('ID: '+escape(student_id),'Identity')
+    p(escape(report_date),'Date')
+    p('Abstract','AbstractHeading')
+    p('This project implements next-word completion for a domain-focused English corpus drawn from William James\'s <i>The Varieties of Religious Experience</i>. '
       'Unigram, interpolated n-gram, categorical hidden Markov, and Elman recurrent neural models are compared using a common training-only vocabulary and held-out text. '
       'The experiment varies HMM state count and RNN hidden size, selects parameters and checkpoints on validation negative log-likelihood, and reports test perplexity and lexical Top-k accuracy. '
       f"The validation-selected model, {escape(best['display_name'])}, obtains test perplexity {score['perplexity']:.2f} and Top-3 accuracy {100*score['top3']:.2f}%. "
@@ -348,7 +361,7 @@ def build_report(results,output,repository_url=''):
     heading('8. Reproducibility and code availability')
     if repository_url:
         p(f'Source code, preprocessing, configuration, and reproduction instructions are available at '
-          f'<link href="{escape(repository_url)}" color="#285F88">{escape(repository_url)}</link>. '
+          f'<link href="{escape(repository_url)}" color="#000000">{escape(repository_url)}</link>. '
           'The accompanying archive contains the raw corpus, measured output, saved models, and this report.')
     else:
         p('The accompanying archive contains source code, raw corpus and provenance, configuration, measured output, saved models, tests, and this report. '
@@ -369,15 +382,15 @@ def build_report(results,output,repository_url=''):
       f"Recorded environment: Python {escape(config['python'])}, NumPy {escape(config['numpy'])}, PyTorch {escape(str(config.get('torch','recorded in results')))}; additional platform details are saved in results.json.",'Small')
     heading('References')
     references=[
-        '[1] W. James, <i>The Varieties of Religious Experience: A Study in Human Nature</i> (1902). Project Gutenberg eBook 621. <link href="https://www.gutenberg.org/ebooks/621" color="#285F88">https://www.gutenberg.org/ebooks/621</link>. Exact source and digest recorded in corpus metadata.',
+        '[1] W. James, <i>The Varieties of Religious Experience: A Study in Human Nature</i> (1902). Project Gutenberg eBook 621. <link href="https://www.gutenberg.org/ebooks/621" color="#000000">https://www.gutenberg.org/ebooks/621</link>. Exact source and digest recorded in corpus metadata.',
         '[2] Course notes, <i>Bayesian Inference</i>, 25 June 2025, sections 5.4-5.5, pp. 30-32 (HMMs and Baum-Welch), and section 5.7, pp. 33-34 (recurrent networks). Supplied with the assignment.',
-        '[3] L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," <i>Proceedings of the IEEE</i> 77(2), 257-286 (1989). <link href="https://doi.org/10.1109/5.18626" color="#285F88">doi:10.1109/5.18626</link>.',
-        '[4] J. L. Elman, "Finding structure in time," <i>Cognitive Science</i> 14(2), 179-211 (1990). <link href="https://doi.org/10.1207/s15516709cog1402_1" color="#285F88">doi:10.1207/s15516709cog1402_1</link>.',
+        '[3] L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," <i>Proceedings of the IEEE</i> 77(2), 257-286 (1989). <link href="https://doi.org/10.1109/5.18626" color="#000000">doi:10.1109/5.18626</link>.',
+        '[4] J. L. Elman, "Finding structure in time," <i>Cognitive Science</i> 14(2), 179-211 (1990). <link href="https://doi.org/10.1207/s15516709cog1402_1" color="#000000">doi:10.1207/s15516709cog1402_1</link>.',
     ]
     for reference in references: p(reference,'Small')
     output.parent.mkdir(parents=True,exist_ok=True)
     document=SimpleDocTemplate(str(output),pagesize=A4,leftMargin=18*mm,rightMargin=18*mm,topMargin=15*mm,bottomMargin=18*mm,
-                              title='Next-Word Prediction in Philosophy of Religion',author='',subject='N-gram, Hidden Markov and Recurrent Neural Models')
+                              title='Next-Word Prediction in Philosophy of Religion',author=author,subject='N-gram, Hidden Markov and Recurrent Neural Models')
     document.build(story,onFirstPage=page_footer,onLaterPages=page_footer)
 
 
@@ -386,10 +399,17 @@ def main():
     parser.add_argument('--results',type=Path,default=ROOT/'output/results.json')
     parser.add_argument('--output',type=Path,default=ROOT/'output/pdf/project_report.pdf')
     parser.add_argument('--repository-url',default='',help='Verified published GitHub repository URL to print.')
+    parser.add_argument('--author',default='Avi Berezovski',help='Author name printed below the course title.')
+    parser.add_argument('--student-id',default='',help='Optional private student ID. Requires a separate --output path.')
+    parser.add_argument('--date',default='November 2026',help='Month and year printed in the title block.')
     args=parser.parse_args()
     if args.repository_url and not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?',args.repository_url):
         parser.error('--repository-url must be a full HTTPS GitHub repository URL.')
-    build_report(read_experiment(args.results),args.output,args.repository_url)
+    if args.student_id and not re.fullmatch(r'[0-9]{5,12}',args.student_id):
+        parser.error('--student-id must contain 5 to 12 digits.')
+    if args.student_id and args.output.resolve()==(ROOT/'output/pdf/project_report.pdf').resolve():
+        parser.error('Use a separate --output path for the private report containing a student ID.')
+    build_report(read_experiment(args.results),args.output,args.repository_url,args.author,args.student_id,args.date)
     print(args.output)
 
 
